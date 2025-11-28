@@ -6,11 +6,11 @@ import { Text } from '../ui/text';
 
 type ChatMessageProps = {
   text: string;
-  sender: 'me' | 'ai';
+  sender: 'user' | 'assistant';
 };
 
 export function ChatMessage({ text, sender }: ChatMessageProps) {
-  const isAI = sender === 'ai';
+  const isAssistant = sender === 'assistant';
   const colorScheme = useColorScheme();
   const aiTextColor = colorScheme === 'dark' ? '#e5e7eb' : '#111827';
 
@@ -21,10 +21,10 @@ export function ChatMessage({ text, sender }: ChatMessageProps) {
     <View
       style={{
         marginVertical: 6,
-        alignSelf: isAI ? 'flex-start' : 'flex-end',
+        alignSelf: isAssistant ? 'flex-start' : 'flex-end',
         maxWidth: '85%',
       }}>
-      {isAI ? (
+      {isAssistant ? (
         <View
           style={{
             borderRadius: 12,

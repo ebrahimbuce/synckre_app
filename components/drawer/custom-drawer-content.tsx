@@ -1,5 +1,3 @@
-// src/navigation/CustomDrawerContent.tsx (o la ubicación original)
-import { useUser } from '@clerk/clerk-expo';
 import React, { useState } from 'react';
 import {
   View,
@@ -26,7 +24,6 @@ interface Props {
 }
 
 export function CustomDrawerContent({ chats, loading, refreshing, onRefresh }: Props) {
-  const { user } = useUser(); // Mantén el hook aquí para la lógica de carga y colores
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const bgColor = isDark ? 'bg-black' : 'bg-white';

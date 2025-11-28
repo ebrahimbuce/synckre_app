@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { XIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import * as React from 'react';
-import { LogBox } from 'react-native';
+import { LogBox, View, Text } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SheetProvider } from 'react-native-actions-sheet';
@@ -23,41 +23,174 @@ LogBox.ignoreLogs(['No native splash screen registered for given view controller
 
 SplashScreen.preventAutoHideAsync();
 
+
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
+  const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  // Ocultar splash screen después de un breve delay
+  React.useEffect(() => {
+    const hideSplash = async () => {
+      try {
+        await SplashScreen.hideAsync();
+      } catch (error) {
+        // Silenciar errores del splash screen
+      }
+    };
+
+    const timeout = setTimeout(hideSplash, 500);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Si no hay clave de Clerk, mostrar un mensaje de error en lugar de crashear
+  if (!clerkKey) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF' }}>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#000' }}>
+          Configuración faltante
+        </Text>
+        <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 10 }}>
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY no está configurada
+        </Text>
+        <Text style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>
+          Agrega esta variable en tu archivo .env
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <KeyboardProvider>
-      <ClerkProvider tokenCache={tokenCache}>
-        <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          <Routes />
-          <PortalHost />
-        </ThemeProvider>
-      </ClerkProvider>
-    </KeyboardProvider>
+    <ErrorBoundary>
+      <KeyboardProvider>
+        <ClerkProvider
+          tokenCache={tokenCache}
+          publishableKey={clerkKey}
+        >
+          <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <Routes />
+            <PortalHost />
+          </ThemeProvider>
+        </ClerkProvider>
+      </KeyboardProvider>
+    </ErrorBoundary>
   );
 }
 
-function Routes() {
-  const { isSignedIn, isLoaded } = useAuth();
-  const router = useRouter();
+// Error Boundary para capturar errores y evitar pantallas blancas
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
 
-  // 👇 Solo ocultamos el splash UNA VEZ, cuando la auth está lista
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Error capturado y manejado silenciosamente
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF' }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#000' }}>
+            Algo salió mal
+          </Text>
+          <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 10 }}>
+            {this.state.error?.message || 'Error desconocido'}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>
+            Revisa los logs de la consola para más detalles
+          </Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function Routes() {
+  const router = useRouter();
+  const [splashHidden, setSplashHidden] = React.useState(false);
+  const [initialLoad, setInitialLoad] = React.useState(true);
+
+  const { isSignedIn, isLoaded } = useAuth();
+
+  // Ocultar el splash screen cuando Clerk esté listo
   React.useEffect(() => {
-    if (isLoaded) {
-      const hide = async () => {
+    const hideSplash = async () => {
+      if (!splashHidden) {
         try {
           await SplashScreen.hideAsync();
+          setSplashHidden(true);
         } catch (err) {
-          console.warn('Error hiding splash screen:', err);
+          setSplashHidden(true);
         }
-      };
-      hide();
-    }
-  }, [isLoaded]);
+      }
+    };
 
-  if (!isLoaded) return null;
+    if (isLoaded) {
+      hideSplash();
+    } else {
+      const timeout = setTimeout(() => {
+        hideSplash();
+      }, 1000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoaded, splashHidden]);
+
+  // Timeout de seguridad: ocultar splash después de 2 segundos máximo
+  React.useEffect(() => {
+    const timeout = setTimeout(async () => {
+      if (!splashHidden) {
+        try {
+          await SplashScreen.hideAsync();
+          setSplashHidden(true);
+        } catch (err) {
+          setSplashHidden(true);
+        }
+      }
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [splashHidden]);
+
+  // Marcar como no inicial después de un momento
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      setInitialLoad(false);
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Mostrar contenido incluso si Clerk no está cargado todavía
+  if (!isLoaded && initialLoad) {
+    return (
+      <GestureHandlerRootView className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+          <Text style={{ fontSize: 16, color: '#666' }}>Cargando...</Text>
+        </View>
+      </GestureHandlerRootView>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <GestureHandlerRootView className="flex-1" style={{ backgroundColor: '#FFFFFF' }}>
+        <Stack>
+          <Stack.Screen name="(auth)/sign-in" options={SIGN_IN_SCREEN_OPTIONS} />
+        </Stack>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView className="flex-1">

@@ -4,6 +4,7 @@ import { Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { Archive, Trash2, Edit } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as ContextMenu from 'zeego/context-menu';
+import { saveLastChatId } from '@/lib/utils/chatStorage';
 
 interface ChatItemProps {
   chat: { id: string; name: string };
@@ -20,12 +21,18 @@ export function ChatListItem({ chat }: ChatItemProps) {
   const handleRename = () => console.log(`Renombrando chat ${chat.name}`);
   const handleDelete = () => console.log(`Eliminando chat ${chat.name}`);
 
+  // Manejar navegación y guardar chat seleccionado
+  const handlePress = async () => {
+    await saveLastChatId(chat.id);
+    router.push(`/chat/${chat.id}`);
+  };
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <TouchableOpacity
-          // Toque simple: NAVEGA
-          onPress={() => router.push(`/chat/${chat.id}`)}
+          // Toque simple: NAVEGA y guarda el chat seleccionado
+          onPress={handlePress}
           className={`flex-row items-center px-5 py-3 ${
             isDark ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'
           }`}
